@@ -1,0 +1,178 @@
+library(ggplot2)
+library(terra)
+library(tidyterra)
+library(tictoc)
+library(reticulate)
+library(leaflet)
+
+setwd("/Volumes/leca/LECA/EQUIPE-BIOM/SERVALP/EQUITES/STAGE_SAMUEL/2024_data_stage_m2_lormel/urban_recreation_model/")
+results_wd = "/Users/neyretma/Documents/EquitES/UrbanES/Results_ES"
+
+# Study area
+perim_broad = vect("delimitations/perimeter_broad.shp") # Only useful for graphic representations
+communes_perimeter = vect("delimitations/communes_perimeter.shp")
+communes_perimeter_buff = buffer(communes_perimeter, 500)
+
+
+#CoSIA Land Use, 10m resolution
+colu = rast("landuse/cosia_10m.tif")
+names(colu) = c("lu_num")
+colu = terra::mask(colu, communes_perimeter_buff)
+seg_colu = segregate(colu, classes = NULL, keep = T, other = NA) # A raster for which each layer is a landuse
+# 18 Landuses, 7 and 9 are empty, 11 and 12 simply don't exist
+
+
+# the urban areas, defined from the Global Human Settlement database
+rast_grid = rasterize(communes_perimeter_buff, seg_colu, res = 10)
+#rast_grid = resample(rast_grid, seg_colu)
+
+
+# The urban areas, defined from the percentage of building cover; This is the one used in the internship work
+# bA = colu
+# bA = terra::mask(bA, communes_perimeter)
+# bA[bA != 1] = 0
+# tissu_urb <- focal(bA, w = 11, fun = sum)
+# tissu_urb[tissu_urb<30.25] = NA # 25% of building cover on a 1ha sliding window
+
+
+tissu_urb = rast("delimitations/GHS_2154.tif")
+tissu_urb[tissu_urb<20] = NA #just a quick way to select the catergories we want, here
+tissu_urb[!is.na(tissu_urb)] = 1 # Put all the values to 1
+tissu_urb = as.polygons(tissu_urb, aggregate = T)
+
+# Need to also keep the INSEE squares that are on the border
+geoportail = vect("/Volumes/leca/LECA/EQUIPE-BIOM/SERVALP/EQUITES/STAGE_SAMUEL/2024_data_stage_m2_lormel/Analysis/200m_selection_urb.shp")
+tissu_urb = geoportail[is.related(geoportail, tissu_urb, "intersects")]
+tissu_urb_buff = buffer(tissu_urb, 1000)
+city_buff = rasterize(tissu_urb_buff, rast_grid, field = "i_est_200", background = NA) # Polygonized and rasterized for a proper resolution
+city_buff[!is.na(city_buff)] = 1
+
+# Parks and green spaces, built on QGIS from OpenStreetMap
+green_spaces = vect("delimitations/osm_parks.shp")
+
+rast_parks = rasterize(green_spaces, rast_grid, field = "use_type", background = NA, fun = max)
+
+# Selection of the parks and green areas in a buffer around urban areas. 
+rast_parks = terra::mask(rast_parks, tissu_urb_buff)
+
+
+# processus de patching to measure park size
+buffed_parks = buffer(rast_parks, 10, background = NA) # Buffer de 10m autour de rast_parks
+buffed_patches = patches(buffed_parks, 8, allowGaps = F) # Patches identifiés en Queen's case
+park_patch = terra::mask(buffed_patches, rast_parks) # suppression des buffers en masquant par rast_parks
+
+# buffed_parks = rast("delimitations/buffed_patch.tif") # Numbered patches of the parks, with a 10m buffer
+# park_patch = rast("delimitations/inclu_patches_parks_10.tif") # Numbered patches with no buffer
+npatches = max(values(park_patch), na.rm = TRUE) # number of parks
+
+
+# Amenities
+fountains = vect("amenities/osm_fountains.shp") # point layers for the fountains (they will count as watersheds)
+playgrounds = vect("amenities/osm_playgrounds.shp") # children's playgrounds
+fitness = vect("amenities/osm_fitness.shp") # Open air fitness areas
+drink_wat = vect("amenities/osm_drinking_water.shp") # Drinking water points
+
+am_int = list(fitness,playgrounds,drink_wat) # List of point layers or the interesting amenities
+
+# Roads
+all_roads = rast("amenities/road_noise.tif") # Raster layer of 3 "road levels", built from OpenStreetMap on QGIS
+
+#Removing the temporary elements
+rm(bA, tissu_urb, drink_wat, fitness, playgrounds)
+
+
+# slu = Segregated LULC map. Each layer is a landuse. Raster map (spatRaster)
+# parks = Patches of the green areas of interest, each one associated with a value. Raster map (SparRaster)
+# bfp = Same as "parks", but with a 10m buffer around each patch/park. Raster map (SparRaster)
+# npatches = number of parks/patches. Numeric
+# 
+# luH = Land-use numbers for herbacious vegetation. Vector of characters
+# luT = Land-use numbers for tree-filled landuses. Vector of characters
+# luW = Land-use for waterscapes. Vector of characters
+# luB = land-use number corresponding to buildings. Vector of characters
+# 
+# ftn = Map for the fountains. Point Layer (SpatVector)
+# am_int = point layer maps list for the ammenities of interest. List of  Point Layers (SpatVectors)
+# 
+# luna = land use numbers for the noise-abatting land uses. Vector of characters
+# matw = reclassification matrix linking land-uses (those in luna) abd their weight for noise-abattment. 2-column dataframe
+# 
+# lvl_road = map of the roads. Roads' values are their noise level. Raster map (spatRaster)
+# lvls = list of sound levels. Must be the same length as the number of categories in lvl-road. Vector of numerics
+
+
+visu = visual_quality_distance(slu = seg_colu, parks = park_patch, bfp = buffed_patches,
+               luH = c("13", "15"), luT = c("8", "10"), luW = c("4", "6"), ftn = fountains,
+               grid = rast_grid )
+
+terra::writeRaster(visu, paste0(results_wd, "/attractiveness2.tif"), datatype = "FLT8S", overwrite = TRUE)
+visu = rast(paste0(results_wd, "/attractiveness2.tif"))
+
+
+#am_int = list(crop(fitness, e),
+#              crop(playgrounds, e),
+#              crop(drink_wat, e))
+
+opp = recre_opp_distance(parks = park_patch, npatches = npatches, am_int = am_int, grid = rast_grid)
+
+terra::writeRaster(opp,  paste0(results_wd, "/opportunities2.tif"), datatype = "FLT8S", overwrite = TRUE)
+opp = rast(paste0(results_wd, "/opportunities2.tif"))
+
+gc() 
+
+poll = pollut(parks = park_patch, slu = seg_colu, luna = c("1", "8", "10"), luB = "1",
+           lvls = c(60, 80, 90), matw = data.frame(lu = c(1, 8, 10), weight = c(50,10,10)),
+           lvl_road = all_roads)
+
+terra::writeRaster(poll,  paste0(results_wd, "/pollutions2.tif"), datatype = "FLT8S", overwrite = TRUE)
+poll = rast(paste0(results_wd, "/pollutions2.tif"))
+
+all = serv_tot(attractiveness = visu, opportunities = opp, pollutions = poll)
+terra::writeRaster(all,  paste0(results_wd, "/all_serv_parks.tif"), datatype = "FLT8S", overwrite = TRUE)
+terra::writeRaster(all[[4]],  paste0(results_wd, "/parks_quality.tif"), datatype = "FLT8S", overwrite = TRUE)
+
+gc()
+###
+e = extent( c(909858, 918949,  6455034 ,  6460157))
+e = ext(890000, 940000, 6432000, 6482000)
+parks_quality= rast(paste0(results_wd, "/parks_quality.tif"))
+parks_quality = crop(parks_quality, e)
+
+recre_buff_500 = best_in_buffer(parks_quality, city_buff, buff = 500)
+recre_buff_500[is.na(recre_buff_500)] = 0
+terra::writeRaster(recre_buff_500,  paste0(results_wd, "/recre_buff_500.tif"), datatype = "FLT8S", overwrite = TRUE)
+
+recre_buff_300 = best_in_buffer(parks_quality, city_buff, buff = 300)
+recre_buff_300[is.na(recre_buff_300)] = 0
+terra::writeRaster(recre_buff_300,  paste0(results_wd, "/recre_buff_300.tif"), datatype = "FLT8S", overwrite = TRUE)
+
+gc()
+
+#parks_quality = extend(parks_quality, 100, fill = NA)
+recre_decay = qual_decay(parks_quality, radius_in_pixels = 100, decay_half_dist = 300)
+recre_decay[is.na(recre_decay)] = 0
+terra::writeRaster(recre_decay,  paste0(results_wd, "/recre_decay_300.tif"), datatype = "FLT8S", overwrite = TRUE)
+
+gc()
+
+# Also calculate park quantity
+parks_quantity = howmuch_in_buffer(parks_quality, city_buff, buff = 300)
+parks_quantity[is.na(parks_quantity)] = 0
+terra::writeRaster(parks_quantity,  paste0(results_wd, "/parks_quantity.tif"), datatype = "FLT8S", overwrite = TRUE)
+
+gc()
+
+# Distance to closest park
+parks_distance = terra::distance(parks_quality)
+parks_distance = terra::mask(parks_distance, city_buff)
+terra::writeRaster(parks_distance,  paste0(results_wd, "/parks_distance.tif"), datatype = "FLT8S", overwrite = TRUE)
+gc()
+
+# Also total quantity of green (tree, grass)
+colu_green = colu 
+colu_green[! (colu_green %in% c(8, 9, 10,13, 14, 15, 16)),] = NA
+colu_green[colu_green>1,] = 1
+green_quantity = howmuch_in_buffer(colu_green, city_buff, buff = 300)
+green_quantity[is.na(green_quantity)] = 0
+terra::writeRaster(green_quantity,  paste0(results_wd, "/green_quantity.tif"), datatype = "FLT8S", overwrite = TRUE)
+gc()
