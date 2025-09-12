@@ -56,7 +56,7 @@ city_buff = rasterize(urban_fabric_buff, rast_grid, field = "i_est_200", backgro
 city_buff[!is.na(city_buff)] = 1
 
 # Parks and green spaces, built on QGIS from OpenStreetMap
-green_spaces = vect(paste0 (data_dir, "Raw_data/Amenities/osm_parks.shp"))
+green_spaces = vect(paste0 (data_dir, "Amenities/osm_parks.shp"))
 
 rast_parks = rasterize(green_spaces, rast_grid, field = "use_type", background = NA, fun = max)
 
@@ -94,13 +94,13 @@ visu = visual_quality_distance(slu = seg_colu, parks = park_patch, bfp = buffed_
                luH = c("13", "15"), luT = c("8", "10"), luW = c("4", "6"), ftn = fountains,
                grid = rast_grid )
 
-terra::writeRaster(visu, "Data/Temp_data/attractiveness2.tif", datatype = "FLT8S", overwrite = TRUE)
+terra::writeRaster(visu, "Data/Temp_data/attractiveness.tif", datatype = "FLT8S", overwrite = TRUE)
 #visu = rast("Data/Temp_data/attractiveness2.tif")
 
 ## Recreation opportunities
 opp = recre_opp_distance(parks = park_patch, npatches = npatches, am_int = am_int, grid = rast_grid)
 
-terra::writeRaster(opp,  "Data/Temp_data/opportunities2.tif", datatype = "FLT8S", overwrite = TRUE)
+terra::writeRaster(opp,  "Data/Temp_data/opportunities.tif", datatype = "FLT8S", overwrite = TRUE)
 #opp = rast("Data/Temp_data/opportunities2.tif")
 
 gc() 
@@ -136,7 +136,7 @@ parks_quality = crop(parks_quality, e)
 
 recre_decay = qual_decay(parks_quality, radius_in_pixels = 100, decay_half_dist = 300)
 recre_decay[is.na(recre_decay)] = 0
-terra::writeRaster(recre_decay,  paste0(results_wd, "/recre_decay_300.tif"), datatype = "FLT8S", overwrite = TRUE)
+terra::writeRaster(recre_decay,  "Results/recre_decay_300.tif", datatype = "FLT8S", overwrite = TRUE)
 
 gc()
 

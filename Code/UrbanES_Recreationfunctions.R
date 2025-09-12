@@ -25,6 +25,24 @@ decay = function(d, half){
   x = exp(-log(2)*d/half)
 }
 
+scaleraster = function(x){
+  nx <- minmax(x)    
+  x <- (x - nx[1,]) / (nx[2,] - nx[1,])
+}
+
+draw_window_decay <- function(radius_in_pixels, resolution, decay_half_dist) {
+  grid <- matrix(NA, 2*radius_in_pixels+1, 2*radius_in_pixels+1)
+  grid[1*radius_in_pixels+1, 1*radius_in_pixels+1] = 1
+  r = terra::rast(grid)
+  dist = terra::distance(r) * resolution
+  decay_d = decay(dist, decay_half_dist)
+  # Remove further than 1k
+  decay_d = decay_d*as.numeric(dist<1*radius_in_pixels*resolution)
+  decay_mat = as.matrix(decay_d, wide = T)
+  return(decay_mat)
+} # Function that draws a circle
+
+
 visual_quality_distance = function(slu, parks, bfp, luH, luT, luW, ftn, grid, buff) {
   ### Attractiveness of the greenery within the buffer ###
   
@@ -115,133 +133,6 @@ visual_quality_distance = function(slu, parks, bfp, luH, luT, luW, ftn, grid, bu
   attractiveness = c(score_vege, score_waters, score_att)
   names(attractiveness) = c("score_vege", "score_waters", "score_att")
   
-  return(attractiveness)
-} 
-
-visual_quality = function(slu, parks, bfp, luH, luT, luW, ftn, grid) {
-  
-  # Raster layer for the grass cover
-  herb = c()
-  for(i in luH) {
-    herb = c(herb,slu[[i]]) # Grouping all the landuse for grasses, in a loop for flexibility
-  }
-  herb = sprc(herb) # Making it a SpatRaster collection that can be merged
-  herb = terra::merge(herb) 
-  herb = mask(parks, herb) #Keeping only the herbs in the parks, and associating them with the patch ID
-  
-  # Raster layer for the tree cover
-  tree = c()
-  for(i in luT) {
-    tree = c(tree,slu[[i]])
-  }
-  tree = sprc(tree)
-  tree = terra::merge(tree)
-  tree = mask(parks, tree)
-  
-  ### Parc size ###
-  alpha = cellSize(parks,unit="ha") |> zonal(parks, sum) #Gives a dataset linking patches to their area
-  names(alpha) = c("patches","park")
-  alpha$park[is.na(alpha$park)] = 0
-  
-  ### Attractiveness of the greenery ###
-  beta = cellSize(herb, unit = "ha") |> zonal(herb, sum) # Herbacious cover area of each patch
-  names(beta) = c("patches","herb")
-  
-  gamma = cellSize(tree, unit = "ha") |> zonal(tree, sum) # Tree cover area of each patch
-  names(gamma) = c("patches","tree") #Les surfaces d'arbres
-  
-  #Making a dataframe for calculation
-  park_compo = full_join(alpha, beta)
-  park_compo = full_join(park_compo, gamma) #R doesn't allow to join 3 columns at a time
-  park_compo[is.na(park_compo)] = 0
-  
-  park_compo$propH = park_compo$herb/(park_compo$park) # Herb cover ratio of the whole patch
-  park_compo$propT = park_compo$tree/(park_compo$park) # Tree cover ratio of the whole patch
-  park_compo[is.na(park_compo)] = 0 
-  
-  park_compo$propH[park_compo$propH > 0.5] = 0.5 # Both the ratios are maxed at 50% and summed
-  park_compo$propT[park_compo$propT > 0.5] = 0.5 
-  park_compo$score = park_compo$propH + park_compo$propT
-  
-  # Reclassification matrix for the greenery composition
-  delta = data.frame(park_compo$patches, park_compo$score)
-  names(delta) = c("patches","score")
-  score_vege = classify(parks, delta)
-  
-  
-  ### Waterscape-related attractiveness ###
-  
-  # Uncomment this section for water-related attractiveness limited to a 300m radius
-  
-  fountains = rasterizeGeom(ftn, grid, fun = "count") # The points related to fountains are rasterized 
-  
-  waters = c() # Waters will be the compiled raster of all the LU codes describing waterscapes
-  for(i in luW) {
-    waters = c(waters,slu[[i]])
-  }
-  waters = sprc(waters)
-  waters = terra::merge(waters)
-
-  waters = merge(waters, fountains) # Fountains and waterscapes are merged in a single raster layer
-  waters[waters == 0] = NA
-  waters = buffer(waters, 300, background = NA) # A buffer of 300m is made around every waterscape
-  #buffers = 1, background = NA
-  
-  pl = parks
-  pl[!is.na(pl)] = 0 # The parks' limits
-  
-  score_waters = merge(waters, pl, first = T) 
-  score_waters = mask(score_waters, pl) # Each park will have a value of 1 only 300m around a waterscape
-  
-  # Total attractiveness score
-  score_att = (score_vege + score_waters) /2 # Global attractiveness score
-  
-  # Uncomment this section for whole-park water-related attractiveness scores
-  # 
-  # # Raster layer for the waterscape cover
-  # waters = c()
-  # for(i in luW) {
-  #   waters = c(waters,slu[[i]])
-  # }
-  # waters = sprc(waters)
-  # waters = terra::merge(waters)
-  # waters = mask(bfp, waters) # Waterscapes are identified in the patches and in a 10m buffer around them
-  # 
-  # 
-  # waterscapes = cellSize(waters, unit = "ha") |> zonal(waters, sum)
-  # names(waterscapes) = c("patches","eau")
-  # waterscapes = full_join(alpha, waterscapes) #The parks without waterscapes are included
-  # waterscapes <- subset(waterscapes, select = -park)
-  # names(waterscapes) = c("patches","eau")
-  # waterscapes$eau[is.na(waterscapes$eau)] = 0 ; waterscapes$eau[waterscapes$eau > 0] = 1
-  # 
-  # 
-  # # ftn are included as waterscape
-  # ex_fount = extract(parks, ftn)
-  # 
-  # # The presence/abscence of water is integrated as a binary 0/1 score, including waterscapes and ftn
-  # pres_wat = data.frame(patches = unique(ex_fount$patches[!is.na(ex_fount$patches)]), ftn = 1) 
-  # pres_wat = full_join(waterscapes, pres_wat)
-  # pres_wat$ftn[is.na(pres_wat$ftn)] = 0
-  # pres_wat$score = as.integer(pres_wat$ftn + pres_wat$eau > 0)
-  # 
-  # epsilon = data.frame(pres_wat$patches, pres_wat$score) #the re-classification matrix for waterscapes
-  # names(epsilon) = c("patches","eau")
-  # 
-  # score_waters = classify(parks, rcl = epsilon)
-  # 
-  # 
-  # # Total score for attractiveness
-  # zeta = full_join(delta, epsilon)
-  # zeta$tot_att = (zeta$score + zeta$eau)/ 2 #zeta$score is the greenery quality and zeta$eau is the waterscape presence score
-  # zeta = subset(zeta, select = c(-score, - eau))
-  # score_att = classify(x = parks, rcl = zeta)
- 
-  
-  # attractiveness is raster in which each layer represents one of the parameters
-  attractiveness = c(score_vege, score_waters, score_att)
-  names(attractiveness) = c("score_vege", "score_waters", "score_att")
-
   return(attractiveness)
 } 
 
@@ -349,10 +240,7 @@ pollut = function(parks, slu, luna, luB, lvls, matw, lvl_road) {
   return(pollutions)
 }
 
-scaleraster = function(x){
-  nx <- minmax(x)    
-  x <- (x - nx[1,]) / (nx[2,] - nx[1,])
-}
+
 serv_tot = function(attractiveness, opportunities, pollutions) {
   # Simply combining all services in a single raster
   # Each layer is one of a parameter
@@ -364,74 +252,6 @@ serv_tot = function(attractiveness, opportunities, pollutions) {
   names(all_serv) = c("attractiveness", "opportunities", "pollutions", "total_recre")
   
   return(all_serv)
-}
-
-qual_logdist = function(all_serv, parks, npatches, outdir){ 
-  
-  if (file.exists(all_serv)){ # Integrating the raster map from a file or from the R environment
-    results_recre = rast(all_serv)
-  } else {
-    results_recre = all_serv
-  }
-  
-  results_recre[is.na(results_recre)] = 0
-  v = results_recre[[4]] |> zonal(parks, "max") # Makes a data.frame where the park ID is linked to its quality score
-  
-  
-  bob = parks # Bob is the raster layer of the parks, Everything further than 500m from th parks is NA
-  buff = buffer(bob, 500, background = NA)
-  bob[is.na(bob)] = 0
-  bob = mask(bob, buff)
-  
-  quali_logdist = parks
-  values(quali_logdist) = 0 #empty raster to store the results in
-  
-  quali_decaydist = parks
-  values(quali_decaydist) = 0 #empty raster to store the results in
-  
-  gc() # emptying the unused memory
-  
-  
-  # # For a reboot :
-  #   k = ????
-  #   fich = paste0("results_cult/saved/500_loop_safe_", k, ".tif")
-  #   C = rast(fich)
-  # # and change the range of i
-  
-  
-  tic()
-  for (i in 1:npatches) { # One loop for each park
-    tic()
-    Di = gridDist(bob, target = i, scale = 1, overwrite =T) # Distance of every pixel to the current park
-    A = Di
-    A[A < 1] = 1 # to avoid Inf values with the log
-    B = v[i,2]/log(A + 1) # Quality/log(distance) ratio
-    C =  v[i,2]*decay(A, 200)
-    quali_logdist = max(quali_logdist, B, na.rm = T) # Compiling the layers, only keeping the highest values
-    quali_decaydist = max(quali_decaydist, C , na.rm = T)
-    print(paste0("End of loop ", i))
-    
-    if (i %% 100 == 0) { # Every 100 loop, saves the current map. Can be checked and/or retrieved
-      k = (i%/%100)*100
-      fichLog = paste0(strsplit(outdir, ".tif"),"safe_log", k, ".tif")
-      fichDecay = paste0(strsplit(outdir, ".tif"),"safe_decay", k, ".tif")
-      
-      print("J'enregistre...")
-      terra::writeRaster(quali_logdist, fichLog, datatype = "FLT4S", overwrite = TRUE)
-      terra::writeRaster(quali_decaydist, fichDecay, datatype = "FLT4S", overwrite = TRUE)
-      
-      print("Enregistrement terminé !")
-      quali_logdist = rast(fichLog)
-      quali_decaydist = rast(fichDecay)
-    }
-    gc()
-    toc()
-  }
-  toc() # 59958.3 sec elapsed => 16.65h
-  
-  terra::writeRaster(C, outdir, datatype = "FLT8S", overwrite = TRUE)
-  
-  return(C)
 }
 
 qual_decay = function(parks_quality, radius_in_pixels, decay_half_dist){ 
@@ -448,39 +268,4 @@ qual_decay = function(parks_quality, radius_in_pixels, decay_half_dist){
   return(quali_decaydist)
 }
 
-best_in_buffer = function(serv, area, buff) {
-  area[area>0] = 0
-  serv = sum(serv, area, na.rm = T)
-  buffer = focalMat(serv, buff, type=c('circle'), fillNA=FALSE)
-  buffer[buffer>0] = 1
-  best_buff <- focal(serv, w = buffer, na.policy = "omit",
-                     fun = function(x){quantile(x[x!=0], 0.99, na.rm = T)}
-  ) # Takes the highest service value in a 500m radius, for every pixel
-return(best_buff)
-}
-
-howmuch_in_buffer = function(serv, area, buff) {
-  area[area>0] = 0
-  serv = terra::mask(serv, area)
-  serv = sum(serv, area, na.rm = T)
-  serv[serv>0] = 1
-  buffer = focalMat(serv, buff, type=c('circle'), fillNA=FALSE)
-  buffer[buffer>0] = 1
-  how_much_buff <- focal(serv, w = buffer, na.policy = "omit",
-                     fun = function(x){mean(x, na.rm = T)}
-  )
-  return(how_much_buff)
-}
-
-draw_window_decay <- function(radius_in_pixels, resolution, decay_half_dist) {
-  grid <- matrix(NA, 2*radius_in_pixels+1, 2*radius_in_pixels+1)
-  grid[1*radius_in_pixels+1, 1*radius_in_pixels+1] = 1
-  r = terra::rast(grid)
-  dist = terra::distance(r) * resolution
-  decay_d = decay(dist, decay_half_dist)
-  # Remove further than 1k
-  decay_d = decay_d*as.numeric(dist<1*radius_in_pixels*resolution)
-  decay_mat = as.matrix(decay_d, wide = T)
-  return(decay_mat)
-} # Function that draws a circle
 
