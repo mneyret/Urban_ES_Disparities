@@ -85,7 +85,6 @@ all_roads = rast(paste0 (data_dir, "Amenities/road_noise.tif")) # Raster layer o
 rm(bA, urban_fabric, drink_wat, fitness, playgrounds)
 
 
-
 ####### RUN MODELS #######
 
 ### Overall park quality assessment
@@ -95,13 +94,11 @@ visu = visual_quality_distance(slu = seg_colu, parks = park_patch, bfp = buffed_
                grid = rast_grid )
 
 terra::writeRaster(visu, "Data/Temp_data/attractiveness.tif", datatype = "FLT8S", overwrite = TRUE)
-#visu = rast("Data/Temp_data/attractiveness2.tif")
 
 ## Recreation opportunities
 opp = recre_opp_distance(parks = park_patch, npatches = npatches, am_int = am_int, grid = rast_grid)
 
 terra::writeRaster(opp,  "Data/Temp_data/opportunities.tif", datatype = "FLT8S", overwrite = TRUE)
-#opp = rast("Data/Temp_data/opportunities2.tif")
 
 gc() 
 
@@ -119,47 +116,13 @@ terra::writeRaster(all[[4]],  "Data/Temp_data/parks_quality.tif", datatype = "FL
 
 gc()
 
-### Recreation model with distance decay
+### Recreation model with distance decay, only on target area
 e = ext(890000, 940000, 6432000, 6482000)
 parks_quality= rast("Data/Temp_data/parks_quality.tif")
 parks_quality = crop(parks_quality, e)
 
-#recre_buff_500 = best_in_buffer(parks_quality, city_buff, buff = 500)
-#recre_buff_500[is.na(recre_buff_500)] = 0
-#terra::writeRaster(recre_buff_500,  paste0(results_wd, "/recre_buff_500.tif"), datatype = "FLT8S", overwrite = TRUE)
-
-#recre_buff_300 = best_in_buffer(parks_quality, city_buff, buff = 300)
-#recre_buff_300[is.na(recre_buff_300)] = 0
-#terra::writeRaster(recre_buff_300,  paste0(results_wd, "/recre_buff_300.tif"), datatype = "FLT8S", overwrite = TRUE)
-
-#gc()
-
 recre_decay = qual_decay(parks_quality, radius_in_pixels = 100, decay_half_dist = 300)
 recre_decay[is.na(recre_decay)] = 0
-terra::writeRaster(recre_decay,  "Results/recre_decay_300.tif", datatype = "FLT8S", overwrite = TRUE)
-
-gc()
-
-# Also calculate park quantity
-#parks_quantity = howmuch_in_buffer(parks_quality, city_buff, buff = 300)
-#parks_quantity[is.na(parks_quantity)] = 0
-#terra::writeRaster(parks_quantity,  paste0(results_wd, "/parks_quantity.tif"), datatype = "FLT8S", overwrite = TRUE)
-
-#gc()
-
-# Distance to closest park
-#parks_distance = terra::distance(parks_quality)
-#parks_distance = terra::mask(parks_distance, city_buff)
-#terra::writeRaster(parks_distance,  paste0(results_wd, "/parks_distance.tif"), datatype = "FLT8S", overwrite = TRUE)
-#gc()
-
-# Also total quantity of green (tree, grass)
-#colu_green = colu 
-#colu_green[! (colu_green %in% c(8, 9, 10,13, 14, 15, 16)),] = NA
-#colu_green[colu_green>1,] = 1
-#green_quantity = howmuch_in_buffer(colu_green, city_buff, buff = 300)
-#green_quantity[is.na(green_quantity)] = 0
-#terra::writeRaster(green_quantity,  paste0(results_wd, "/green_quantity.tif"), datatype = "FLT8S", overwrite = TRUE)
-#gc()
+terra::writeRaster(recre_decay,  "Data/Temp_data/recre_decay_300.tif", datatype = "FLT8S", overwrite = TRUE)
 
 ```

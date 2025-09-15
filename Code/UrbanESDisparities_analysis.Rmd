@@ -29,22 +29,22 @@ library(ggpp)
 library(OasisR)
 library(data.table)
 library(dplyr)
-#source('/Users/neyretma/Documents/EquitES/UrbanES/Packages/SegEnvIneq/R/SegEnvIneq.R')
-#library(SegEnvIneq)
 
-all_rasters = rast('/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/all_ES_urban.tif')
-all_data = vect('/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/all_data_squares.shp')
-perimeter = vect("/Users/neyretma/Documents/Data/ESNET/ESNET_FRONTIERES/ESNET_FRONTIERS.shp")
-cities = vect('/Users/neyretma/Documents/EquitES/UrbanES/cities_maps.shp')
+setwd("/Users/neyretma/Documents/EquitES/Paper_UrbanES/Submitted/Data_analysis")
+data_dir = "/Users/neyretma/Documents/Data/"
+
+all_rasters = rast('Results/all_ES_urban.tif')
+all_data = vect('Results/all_data_squares.shp')
+perimeter = vect(paste0(data_dir, "ESNET/ESNET_FRONTIERES/ESNET_FRONTIERS.shp"))
+cities = vect(paste0(data_dir,'Communes/cities_maps.shp'))
 cities = project(cities, perimeter)
-mnt = rast('/Users/neyretma/Documents/ES_models/ES_from_Alberto/DEM_ISERE.tif')
+mnt = rast(paste0(data_dir,'Soil_topo/DEM_ISERE.tif'))
 mnt_large = crop(mnt, perimeter)
 mnt = crop(mnt, all_rasters)
-urban_areas = rast("/Volumes/leca/LECA/EQUIPE-BIOM/SERVALP/EQUITES/STAGE_SAMUEL/2024_data_stage_m2_lormel/urban_recreation_model/delimitations/GHS_2154.tif")
+urban_areas = rast(paste0(data_dir,"GlobalHumanSettlement/GHS_2154.tif"))
 
 Grenoble_Y = ext(890000, 940000, 6432000, 6482000)
 urban_areas[urban_areas<20] = NA #just a quick way to select the catergories we want, here
-#urban_areas[!is.na(urban_areas)] = 1 # Put all the values to 1
 urban_areas = as.polygons(urban_areas, aggregate = T)
 urban_areas = crop(urban_areas, Grenoble_Y)
 
@@ -53,13 +53,12 @@ all_data$rec_dist_log = log(all_data$rec_dist+1)
 
 ```
 
-[**On change tout ça en quantiles**]{.underline}
+[** Change to quantiles **]{.underline}
 
 ```{r "Quantilisation"}
 names(all_data) = gsub('_pau*v*', '_poor', names(all_data) )
-variables = c('men_poor','men_non_poor','p_poor', 'ind_65','p_65', 'ind_80','p_80', 'ind_14','p_14', 'ind', 'hmi',  'retention', 'rec_decay', 'rec_buff3', 'rec_buff5',"rec_quanti" ,"rec_dist", "green_quan", 'nv_per_ind')
-
-names = c('q_poor','q_p_poor',  'q_65','q_p_65', 'q_80','q_p_80','q_14','q_p_14', 'q_prop', 'q_ind', 'q_hmi', 'q_retention', 'q_rec_decay', 'q_rec_buff3', 'q_rec_buff5',"q_rec_quanti", "q_rec_dist" ,  "q_green_quan", 'q_nv_per_ind')
+variables = c('men_poor','men_non_poor','p_poor', 'ind_65','p_65', 'ind_14','p_14', 'ind', 'hmi',  'retention', 'rec_decay', 'nv_per_ind')
+names = c('q_poor','q_p_poor',  'q_65','q_p_65', 'q_14','q_p_14', 'q_prop', 'q_ind', 'q_hmi', 'q_retention', 'q_rec_decay', 'q_nv_per_ind')
 
 cut_quant = function(x, probs = c(0, 0.33, 0.66 ,1)){
   as.numeric(cut(x, quantile(x, probs,na.rm = T),  include.lowest = TRUE))
@@ -80,8 +79,8 @@ data_socio = as.data.frame(all_data)
 all_data = crop(all_data, all_data[!(is.nan(all_data$rec_decay)),])
 all_data_spatpoly <- as(all_data, "Spatial")
 
-writeVector(all_data[, c("men", "men_poor", "ind", "ind_65", "ind_14", "men_non_poor", 'hmi', 'retention', 'rec_decay')],
-            '/Users/neyretma/Desktop/temp/data_squares.shp',overwrite=TRUE)
+#writeVector(all_data[, c("men", "men_poor", "ind", "ind_65", "ind_14", "men_non_poor", 'hmi', 'retention', 'rec_decay')],
+#            Data/temp/data_squares.shp',overwrite=TRUE)
             
 ```
 
@@ -99,48 +98,48 @@ sum(data_socio$men_non_poor, na.rm = T)/sum(data_socio$men, na.rm = T)
 ```
 
 ```{r 1. Plot study area map}
-mnt_large = terra::project(mnt_large, perimeter)
-mnt_large = terra::mask(mnt_large, perimeter)
-ggplot() + theme_bw() +
-  geom_spatvector(data = perimeter) + 
-  geom_spatraster(data = mnt_large, aes(fill = DEM_ISERE) ) +
-  scale_fill_distiller(type = "seq",
-                        direction = 1,
-                         na.value = 'transparent',
-                        palette = "Greys", name = 'Elevation (m)',
-                       trans = 'log10') +
-
-  geom_spatvector(data = urban_areas, fill = '#4A618C', color = NA) +
-   ggspatial::annotation_north_arrow(
-   location = "bl", which_north = "true",
-   pad_x = unit(0.5, "in"), pad_y = unit(0.25, "in"),
-   style = ggspatial::north_arrow_nautical(
-     fill = c("grey40", "white"),
-     line_col = "grey20")) +
- ggspatial::annotation_scale(
-   location = "bl",
-   bar_cols = c("grey60", "white")
- )
-
-vegetation_map = ggplot() +
-  theme(panel.grid.major = element_blank(),
-        panel.background = element_rect(fill = "white"),
-        panel.border = element_rect(fill = NA),
-    legend.direction = "vertical",
-    legend.title.position = 'top',
-    legend.background = element_blank(),
-    legend.box.background = element_blank()) +
-  geom_spatraster(data = mnt, aes(fill = DEM_ISERE) ) +
-  scale_fill_distiller(type = "seq",
-                        direction = 1,
-                        palette = "Greys", name = 'Elevation (m)',
-                       trans = 'log10', guide = 'none') +
-    new_scale_fill() +
- geom_spatraster(data = all_rasters, aes(fill = green_quanti) ) +
-  scale_fill_continuous(option = 'B',type = "viridis", na.value = "transparent", name = 'Vegetation\namount')
-
-main_map
-
+#mnt_large = terra::project(mnt_large, perimeter)
+#mnt_large = terra::mask(mnt_large, perimeter)
+#ggplot() + theme_bw() +
+#  geom_spatvector(data = perimeter) + 
+#  geom_spatraster(data = mnt_large, aes(fill = DEM_ISERE) ) +
+#  scale_fill_distiller(type = "seq",
+#                        direction = 1,
+#                         na.value = 'transparent',
+#                        palette = "Greys", name = 'Elevation (m)',
+#                       trans = 'log10') +
+#
+#  geom_spatvector(data = urban_areas, fill = '#4A618C', color = NA) +
+#   ggspatial::annotation_north_arrow(
+#   location = "bl", which_north = "true",
+#   pad_x = unit(0.5, "in"), pad_y = unit(0.25, "in"),
+#   style = ggspatial::north_arrow_nautical(
+#     fill = c("grey40", "white"),
+#     line_col = "grey20")) +
+# ggspatial::annotation_scale(
+#   location = "bl",
+#   bar_cols = c("grey60", "white")
+# )
+#
+#vegetation_map = ggplot() +
+#  theme(panel.grid.major = element_blank(),
+#        panel.background = element_rect(fill = "white"),
+#        panel.border = element_rect(fill = NA),
+#    legend.direction = "vertical",
+#    legend.title.position = 'top',
+#    legend.background = element_blank(),
+#    legend.box.background = element_blank()) +
+#  geom_spatraster(data = mnt, aes(fill = DEM_ISERE) ) +
+#  scale_fill_distiller(type = "seq",
+#                        direction = 1,
+#                        palette = "Greys", name = 'Elevation (m)',
+#                       trans = 'log10', guide = 'none') +
+#    new_scale_fill() +
+# geom_spatraster(data = all_rasters, aes(fill = green_quanti) ) +
+#  scale_fill_continuous(option = 'B',type = "viridis", na.value = "transparent", name = 'Vegetation\namount')
+#
+#main_map
+#
 ```
 
 ```{r 1. Plot map figures}
@@ -333,50 +332,50 @@ if (!is.na(savefile)){
 return(plot)
 }
 
-submap_ext = c(912500, 916500, 6455200, 6459000)
 submap_ext = c(909400, 918500, 6453313, 6461000)
 Map_rec_decay = plot_map(all_spatial_data = all_rasters, var_es = 'rec_decay', data_name = 'Recreation',submap_ext = submap_ext,
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_rec_decay.jpg')
+             savefile = 'Figures/map_rec_decay.jpg')
 Map_rec_decay
 
-Map_rec_buffer = plot_map(all_spatial_data = all_rasters, var_es = 'rec_buff5', data_name = 'Recreation',submap_ext = submap_ext,
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_rec_buff5.jpg')
+#Map_rec_buffer = plot_map(all_spatial_data = all_rasters, var_es = 'rec_buff5', data_name = 'Recreation',submap_ext = submap_ext,
+#             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_rec_buff5.jpg')
 
 
 Map_hmi = plot_map(all_spatial_data = all_rasters, var_es = 'hmi', data_name = 'HMI',submap_ext = submap_ext,
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_hmi.jpg')
+             savefile = 'Figures/map_hmi.jpg')
 
 Map_runoff = plot_map(all_spatial_data = all_rasters, var_es = 'retention', data_name = 'Flood\nmitigation',submap_ext = submap_ext,
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_runoff.jpg')
+             savefile = 'Figures/map_runoff.jpg')
 
 Map_density = plot_map(all_spatial_data = all_data, var_soc = 'ind', data_name = 'Population\ndensity',submap_ext = submap_ext, my_breaks = c(100, 500, 1500),
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_density.jpg')
+             savefile = 'Figures/map_density.jpg')
 
-Map_green = plot_map(all_spatial_data = all_data, var_soc = 'green_quan', data_name = 'Vegetation amount', submap_ext = submap_ext, my_breaks = c(100, 500, 1500),
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_vegetation.jpg')
+#Map_green = plot_map(all_spatial_data = all_data, var_soc = 'green_quan', data_name = 'Vegetation amount', submap_ext = submap_ext, my_breaks = c(100, 500, 1500),
+#             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_vegetation.jpg')
 
 
 Map_p_poor = plot_map(all_spatial_data = all_data, var_soc = 'p_poor', data_name = 'Proportion of low-income\n households',submap_ext = submap_ext, my_breaks = c(0.1, 0.3, 0.8),
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_p_poor.jpg')
+             savefile = 'Figures/map_p_poor.jpg')
 Map_livingstd = plot_map(all_spatial_data = all_data, var_soc = 'nv_per_ind', data_name = 'Living standard\n per individual',submap_ext = submap_ext, my_breaks = c(15000, 25000, 40000),
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_livingstandard.jpg')
+             savefile = 'Figures/map_livingstandard.jpg')
 ```
 
 ```{r 2.1 Check distributions between poor and non-poor households}
 all_data_sf <- sf::st_as_sf(all_data)
 all_data_sf$id = 1:nrow(all_data_sf)
 
-data_poor = all_data_sf[,c('id', 'men_poor','hmi', 'retention', 'green_quan', 'rec_decay','q_hmi', 'q_retention','q_rec_decay', 'n_q1')]
-names(data_poor) = c('id',  'weights', 'hmi','retention', 'green_quan', 'rec_decay','q_hmi', 'q_retention','q_rec_decay', 'n_q1',  "geometry" )
+# Reorganise data into long format
+data_poor = all_data_sf[,c('id', 'men_poor','hmi', 'retention', 'rec_decay','q_hmi', 'q_retention','q_rec_decay', 'n_q1')]
+names(data_poor) = c('id',  'weights', 'hmi','retention',  'rec_decay','q_hmi', 'q_retention','q_rec_decay', 'n_q1',  "geometry" )
 data_poor$is.poor = 'poor'
 
-data_non_poor = all_data_sf[,c('id',  'men_non_poor','hmi',  'retention', 'green_quan', 'rec_decay', 'q_hmi', 'q_retention','q_rec_decay', 'n_q1')]
-names(data_non_poor) = c('id',  'weights', 'hmi','retention', 'green_quan', 'rec_decay','q_hmi', 'q_retention','q_rec_decay', 'n_q1', "geometry" )
+data_non_poor = all_data_sf[,c('id',  'men_non_poor','hmi',  'retention', 'rec_decay', 'q_hmi', 'q_retention','q_rec_decay', 'n_q1')]
+names(data_non_poor) = c('id',  'weights', 'hmi','retention', 'rec_decay','q_hmi', 'q_retention','q_rec_decay', 'n_q1', "geometry" )
 data_non_poor$is.poor = 'non_poor'
 
 data_split = as.data.table(rbind(data_poor,data_non_poor))
 
-data_long = melt(data_split, id.vars = c('id', 'weights', 'is.poor'), variable.name = 'ES', measure.vars = c('hmi', 'retention', 'green_quan','rec_decay')) #,'rec_buff5', "rec_buff3",  'rec_dist_log'))
+data_long = melt(data_split, id.vars = c('id', 'weights', 'is.poor'), variable.name = 'ES', measure.vars = c('hmi', 'retention', 'green_quan','rec_decay')) 
 data_long[, ES_var_pretty := recode_factor(ES, "hmi"       = 'a. Heat mitigation',
                                                "retention"  = 'b. Flood mitigation',
                                                'rec_decay' = "c. Recreation",
@@ -388,7 +387,7 @@ data_rep$ID = 1:nrow(data_rep)
 data_rep = data_rep[rep(1:.N,round(weights, 0))][,Indx:=1:.N,by=ID]
 data_rep$is.poor = as.factor(data_rep$is.poor)
 
-
+# Get averages
 values = data_long[, list(wt.mean =  wtd.mean(value, weights),
                           wt.median =  weighted.median(value, weights)), by =list(ES_var_pretty, is.poor)
                           ]
@@ -397,122 +396,23 @@ values = data_long[, list(wt.mean =  wtd.mean(value, weights),
 boot_weight_mean = function(data, i){
   d = data[i,]
   wtd.mean(d$value, d$weights)}
+data_long[,  boot.ci(boot(.SD,boot_weight_mean, R = 999), type = 'bca')$bca[4:5], .SDcols = c('value', 'weights'), by = c('ES', 'is.poor') ]
 
-a = data_long[,  boot.ci(boot(.SD,boot_weight_mean, R = 999), type = 'bca')$bca[4:5], .SDcols = c('value', 'weights'), by = c('ES', 'is.poor') ]
+#tests_diff = data_long[,  list(p_mean = kruskal_wallis_test(.SD, 'value', by = 'is.poor', weights = 'weights')$p), by = ES_var_pretty]
 
-tests_diff = data_long[,  list(p_mean = kruskal_wallis_test(.SD, 'value', by = 'is.poor', weights = 'weights')$p), by = ES_var_pretty]
+#tests_diff[, p_mean := as.character(ifelse(p_mean< 0.001, 'p < 0.001', paste0('p = ',round(p_mean, 3))))]
 
-tests_diff[, p_mean := as.character(ifelse(p_mean< 0.001, 'p < 0.001', paste0('p = ',round(p_mean, 3))))]
 
-values_test = merge(dcast(values, ES_var_pretty~is.poor, value.var = 'wt.mean'), tests_diff, by = 'ES_var_pretty')
+# Values to print on figure
+values_test = #merge(
+  dcast(values, ES_var_pretty~is.poor, value.var = 'wt.mean')#, tests_diff, by = 'ES_var_pretty')
 values_test[, label := paste0('Secure: ', round(non_poor, 2), "\nPoor: ",round(poor, 2))]
                               #,'\n',p_mean)]
 values_test[, c('x', 'y') := list(c('right', 'right', 'right'#, 'right', 'right'
                                     ),
                                   c(rep('top', 3)))#5)))
                                   ]
-
-### Permutation test on weighted values
-#data_test = data_long
-#data_test[, weights_std := weights/sum(weights), by = c('ES', 'is.poor')]
-#data_test[, value_weighted := value*weights_std, by = c('ES', 'is.poor')]
-#data_test[, ntot := round(sum(weights), 0), by = c('ES',  'id')]
-#data_test[, weights := round(weights, 0), by = c('ES',  'id')]
-
-#data_test_long = dcast(data_test,  ES + id + ntot ~ is.poor, value.var = 'value_weighted')
-#data_test_long[, diff := non_poor - poor]
-
-#library(broman)
-#a = paired.perm.test(data_test[ES == 'retention', ]$diff, n.perm = 999, pval = TRUE)
-#t.test(data_test[ES == 'retention', ]$non_poor, data_test[ES == 'retention', ]$poor, paired = T)
-
-#wilcoxon_test(data_test[ES == 'retention', ], c("poor", "non_poor"), paired = TRUE, weights = 'ntot')
-#wilcoxon_test(data_test[ES == 'hmi', ], c("poor", "non_poor"), paired = TRUE, weights = 'ntot')
-#wilcoxon_test(data_test[ES == 'rec_decay', ], c("poor", "non_poor"), paired = TRUE, weights = 'ntot')
-
-# data_test[, id := as.factor(id)]
-# data_test[, is.poor := as.factor(is.poor)]
-# data_test_test = data_test[ ES == 'hmi',]
-#
-# library(coin)
-#
-#indep_test_hmi = independence_test(data =  data_test[ ES == 'hmi',], 
-#                                   value~is.poor|id,
-#                                   weights = ~as.integer(round(weights,0)),  
-#                                   distribution = approximate(nresample = 10000))
-#
-#indep_test_retention = independence_test(data =  data_test[ ES == 'retention',], value~is.poor, weights = #~as.integer(round(weights,0)),  distribution = approximate(nresample = 10000),)
-#
-#indep_test_recreation = independence_test(data =  data_test[ ES == 'rec_decay',], value~is.poor, weights = #~as.integer(round(weights,0)),  distribution = approximate(nresample = 10000),)
-#
-#fit.mix<-lmer(data =  data_test[ ES == 'rec_decay',], 
-#              value~is.poor + (1|id), 
-#              weights = as.integer(round(weights,0)))
-#fit.mix<-lmer(data =  data_test[ ES == 'hmi',], 
-#              value~is.poor + (1|id), 
-#              weights = as.integer(round(weights,0)))
-#
-#
-#ggplot(data_test[ ES == 'rec_decay',], aes(log(value*weights), fill = is.poor)) + geom_histogram(position = #position_dodge())
-#summary(fit.mix)
-#plot(fit.mix)
-#hist(data_test[ ES == 'hmi',]$value)
-#mod = lmer(data =  data_test[, ES == 'hmi',], 
-#           value~is.poor + (1|id), 
-#           weights = 1/weights)
-#plot(mod)
-#summary(mod)
-#
-#hist(data_test[ ES == 'retention',]$value)
-#mod = lm(data =  data_test[ ES == 'retention',], value~is.poor, weights = weights)
-#plot(mod)
-#summary(mod)
-#
-#
-#
-#DT <- data_test[rep(1:.N,round(weights, 0))][,Indx:=1:.N,by=id]
-#fit.mix<-lme(data = DT[ ES == 'rec_decay',], 
-#              scale(value) ~ is.poor, random = ~ 1|id)
-#fit.mix<-lme(data = DT[ ES == 'hmi',], 
-#              scale(value) ~ is.poor, random = ~ 1|id)
-#
-#DT <- data_test[,weights_norm := weights/sum(weights), by = is.poor]
-#DT <- data_test[,value_weighted := weights_norm*value]
-#DT_cast = dcast(DT, ES + id ~ is.poor, value.var = 'value_weighted')
-#DT_cast[, diff := non_poor-poor]
-#
-#t.test(DT_cast[ES == 'hmi',]$diff)
-#t.test(DT_cast[ES == 'rec_decay',]$diff)
-#t.test(DT_cast[ES == 'retention',]$diff)
-#
-#CI(DT_cast[ES == 'hmi',]$diff)
-#CI(DT_cast[ES == 'rec_decay',]$diff)
-#CI(DT_cast[ES == 'hmi',]$diff)
-
-# oneway_test(value ~ is.poor | id, DT, alternative="two.sided", conf.int	= TRUE)
-# 
-# summary(lm(value ~ is.poor , DT))
-# a = lme(value ~ is.poor, random   = ~1|id, weights = weights,  data_test_test)
-# summary(a)
-# 
-# oneway_test(value ~ is.poor | id, data = data_test[ES == 'hmi',])    #   weights = ~weights, alternative="two.sided", conf.int	= TRUE)
-# oneway_test(value_weighted ~ is.poor | id, data = data_test[ES == 'retention',], weights = ~weights, alternative="two.sided", conf.int	= T)
-# oneway_test(value_weighted ~ is.poor | id, data = data_test[ES == 'rec_decay',], weights = ~weights, alternative="two.sided", conf.int	= T)
-# 
-# oneway_test(value_weighted ~ is.poor , data = data_test[ES == 'hmi',], alternative="two.sided", conf.int	= TRUE)
-# 
-# independence_test(value_weighted ~ is.poor |id, data = data_test[ES == 'hmi',], distribution = approximate(nresample = 10000))
-# 
-# dummy_data = data.frame(x = c(1, 1, 1, 2, 3, 3, 5, 7, 1, 10))
-# dummy_data$id = as.factor(rep(1:5, length.out = 10))
-# dummy_data$y = as.factor(c(rep('a', 5), rep('b', 5)))
-# dummy_data$w = c(1, 1, 1, 10, 10, 1, 1, 1, 10, 10)
-# dummy_data$xw = dummy_data$w *dummy_data$x
-# 
-# oneway_test(x ~ y | id, data = dummy_data,  alternative="two.sided")
-# oneway_test(x ~ y | id, data = dummy_data, weights = ~w, alternative="two.sided")
-# oneway_test(xw ~ y | id, data = dummy_data, alternative="two.sided")
-
+# Figure 3 a-c
 density_plot = ggplot(data_long, aes(x = value, weight = weights, fill = is.poor)) + theme_bw() +
   geom_density(alpha = 0.4) +
   facet_wrap(~ES_var_pretty, scales = 'free') +
@@ -533,11 +433,12 @@ density_plot = ggplot(data_long, aes(x = value, weight = weights, fill = is.poor
     legend.position = 'bottom'
   )
 density_plot
-ggsave(plot = density_plot, '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/density_plot.jpg', width = 9, height = 4)
+ggsave(plot = density_plot, 'Figures/density_plot.jpg', width = 9, height = 4)
 
 ```
 
 ``` {r 2.2 Regressions of ES ~ eco var with spatial autocorrelation}
+# Supplementary analysis
 centers = st_centroid(all_data_sf)
 centers_xy = st_coordinates(centers)
 all_data_sf$X = centers_xy[, 1]
@@ -552,7 +453,7 @@ rerun = F
 if (rerun == T){
 list_mods_spatcorr = list()
 results_spatcorr = setDT(expand.grid('ES' = c('hmi','retention', 'rec_decay'), 'Soc' = c('p_poor', 'nv_per_ind_k')))
-for (x in c('hmi', 'retention', 'rec_decay','rec_buff5','green_quan','rec_dist_log')){
+for (x in c('hmi', 'retention', 'rec_decay')){
   for (y in c('p_poor', 'nv_per_ind_k')){
     if (y == 'p_poor'){data = all_data_sf[, c(x, y, 'men')]}
     if (y == 'nv_per_ind_k'){data = all_data_sf[, c(x, y, 'ind')]}
@@ -580,33 +481,32 @@ for (x in c('hmi', 'retention', 'rec_decay','rec_buff5','green_quan','rec_dist_l
 results_spatcorr[, Estimate := round(Estimate, 4)]
 results_spatcorr[, SE := round(SE, 4)]
   
-fwrite(results_spatcorr, '/Users/neyretma/Documents/EquitES/UrbanES/Paper/results_spatcorr.csv')}
+fwrite(results_spatcorr, 'Results/results_spatcorr.csv')
 }
-results_spatcorr =fread( '/Users/neyretma/Documents/EquitES/UrbanES/Paper/results_spatcorr.csv')
+}
+results_spatcorr =fread( 'Results/results_spatcorr.csv')
 
-data_df = as.data.table(all_data)
-data_df_melt = melt(data_df[, list(rec_decay, hmi, retention, p_poor, men, nv_per_ind, ind)], id.vars = c('men', 'ind', 'p_poor', 'nv_per_ind'), variable.name = 'ES', value.name = 'ES_value')
-data_df_melt = melt(data_df_melt, id.vars = c( 'ES',   'ES_value','men',   'ind'), variable.name = 'Soc', value.name = 'Soc_value')
-data_df_melt = melt(data_df_melt, id.vars = c( 'ES',   'ES_value','Soc',   'Soc_value'), variable.name = 'weight', value.name = 'weight_value')
-
-random_rows = sample.int(nrow(data_df_melt), 10000)
-
-plot_reg = ggplot(data_df_melt, 
-                  aes(y = sqrt(ES_value), log(Soc_value), weight = weight_value
-                      )) + geom_point(alpha = 0.05) + geom_smooth() +
-         facet_wrap(Soc~ES, scales = 'free') +
-  scale_color_viridis_d(option = 'B') +
-     theme(
-    strip.background = element_blank(),
-    strip.text = element_textbox(
-      size = 12,
-      color = "white", fill = "#5D729D", box.color = "#4A618C",
-      halign = 0.5, linetype = 1, r = unit(5, "pt"), width = unit(1, "npc"),
-      padding = margin(2, 0, 1, 0), margin = margin(3, 3, 3, 3)
-    ),
-    legend.position = 'bottom'
-  )
-plot_reg
+# data_df = as.data.table(all_data)
+# data_df_melt = melt(data_df[, list(rec_decay, hmi, retention, p_poor, men, nv_per_ind, ind)], id.vars = c('men', 'ind', 'p_poor', 'nv_per_ind'), variable.name = 'ES', value.name = 'ES_value')
+# data_df_melt = melt(data_df_melt, id.vars = c( 'ES',   'ES_value','men',   'ind'), variable.name = 'Soc', value.name = 'Soc_value')
+# data_df_melt = melt(data_df_melt, id.vars = c( 'ES',   'ES_value','Soc',   'Soc_value'), variable.name = 'weight', value.name = 'weight_value')
+# 
+# plot_reg = ggplot(data_df_melt, 
+#                   aes(y = sqrt(ES_value), log(Soc_value), weight = weight_value
+#                       )) + geom_point(alpha = 0.05) + geom_smooth() +
+#          facet_wrap(Soc~ES, scales = 'free') +
+#   scale_color_viridis_d(option = 'B') +
+#      theme(
+#     strip.background = element_blank(),
+#     strip.text = element_textbox(
+#       size = 12,
+#       color = "white", fill = "#5D729D", box.color = "#4A618C",
+#       halign = 0.5, linetype = 1, r = unit(5, "pt"), width = unit(1, "npc"),
+#       padding = margin(2, 0, 1, 0), margin = margin(3, 3, 3, 3)
+#     ),
+#     legend.position = 'bottom'
+#   )
+# plot_reg
 
 ```
 
@@ -633,24 +533,20 @@ serr_p <- spatialreg::errorsarlm(nv_per_ind_k ~ lowEs_2_more,
                                na.action = na.omit,
                                weights = men)
 summary(serr_p)
-weighted.mean(all_data_sf[all_data_sf$n_q1>=2,]$nv_per_ind, all_data_sf[all_data_sf$n_q1>=2,]$men)
+#weighted.mean(all_data_sf[all_data_sf$n_q1>=2,]$nv_per_ind, all_data_sf[all_data_sf$n_q1>=2,]$men)
 
-weighted.mean(all_data_sf[all_data_sf$n_q1<2,]$nv_per_ind, all_data_sf[all_data_sf$n_q1<2,]$men)
+#weighted.mean(all_data_sf[all_data_sf$n_q1<2,]$nv_per_ind, all_data_sf[all_data_sf$n_q1<2,]$men)
 
 ```
 
 
 ```{r 3.1 Plot supply-demand maps, echo = F}
 Map_SD_hmi_65 = plot_map(all_spatial_data = all_data, var_soc = 'q_65', var_es = 'q_hmi', data_name = ' >65 x HMI',submap_ext = submap_ext,
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_SD_oldhmi.jpg')
-
-Map_SD_rec_children = plot_map(all_spatial_data = all_data, 
-                               var_soc = 'q_14', var_es = 'q_rec_buff5', data_name = ' <14 x Rec',submap_ext = submap_ext,
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_SD_chlidrenrec.jpg')
+             savefile = 'Figures/map_SD_oldhmi.jpg')
 
 Map_SD_recdecay_children = plot_map(all_spatial_data = all_data, 
                                var_soc = 'q_14', var_es = 'q_rec_decay', data_name = ' <14 x Rec',submap_ext = submap_ext,
-             savefile = '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/map_SD_chlidrenrecdecay.jpg')
+             savefile = 'Figures/map_SD_chlidrenrecdecay.jpg')
 
 ## Check key values
 # how many people live in areas with low ES values ?
@@ -738,69 +634,20 @@ plot_mismatch = ggplot(data_mismatch, aes(x = is.low_nv, y = ind, fill = value))
                                  "#4A618C"),
                                   breaks = c('1', '2', '3'), labels = c('Low', 'Medium', 'High'), name = 'Ecosystem\nservice supply')
 
-ggsave(plot = plot_mismatch,'/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/mismatch_plot.jpg', width = 7, height = 3)
+ggsave(plot = plot_mismatch,'Figures/mismatch_plot.jpg', width = 7, height = 3)
 ```
 
 ```{r Environmental dissimilarities}
 gc()
 rerun = TRUE
-library(SegEnvIneq)
 
-# Indice de ségrégation de Gini
-Gini(cbind(x,y))[1]
 
 if (rerun == TRUE){
   ED_matrix = data.table(expand.grid(ES_var =  c('hmi', 'retention', 'rec_decay')#, 
-                                     #Soc_var = c('poor', 'non-poor', 'diff')
                                      ))
 
   ED_matrix_SD = data.table(expand.grid(ES_var =  c('hmi', 'retention', 'rec_decay'), 
                                         Soc_var = c('ind', 'ind_65', 'ind_14', 'diff_65', 'diff_14')))
-# Old analyses with Environmental dissimilarity
-#for (es in c('hmi', 'retention', 'rec_decay')){
-#    print('___')
-#    print(es)
-#    all_data_spatpoly$es = all_data_spatpoly@data[, es]
-#
-#      # Test poor
-# ineq_test_poor <-  SegEnvIneq::EnvResampleTest(x = all_data_spatpoly$men_poor,
-#                                                a = all_data_spatpoly$es,
-#                                                spatobj = all_data_spatpoly,
-#                                                proba = #all_data_spatpoly$men/sum(all_data_spatpoly$men),
-#                                                fun = "EDfunc",
-#                                                vers = "standard",
-#                                                nsim = 999,
-#                                                simtype = "MonteCarlo",
-#                                                sampleunit = 'ind')
-# 
-#    # Test non poor
-#    ineq_test_nonpoor <- SegEnvIneq::EnvResampleTest(x = all_data_spatpoly$men_non_poor,
-#                                                     a = all_data_spatpoly$es,
-#                                                     spatobj = all_data_spatpoly,
-#                                                     proba = #all_data_spatpoly$men/sum(all_data_spatpoly$men),
-#                                                     fun = "EDfunc",
-#                                                     vers = "standard",
-#                                                     nsim = 999,
-#                                                     simtype = "MonteCarlo",
-#                                                     sampleunit = 'ind')
-#
-#    # Test Delta
-#    ineq_test_delta <- DeltaEDResample(cbind(all_data_spatpoly$men_poor, #all_data_spatpoly$men_non_poor),
-#                                       all_data_spatpoly$es,
-#                                       proba = all_data_spatpoly$men/sum(all_data_spatpoly$men),
-#                                       nsim = 999)
-#
-#    # Store results
-#    ED_matrix[ES_var == es & Soc_var == 'poor', c('ED', 'ED_p', 'sim_ci_upp','sim_mean', #'sim_ci_low'):=
-#                as.list(c(ineq_test_poor$Summary$EDfunc, ineq_test_poor$Summary$P.Value #,CI(ineq_test_poor$IndexDist)))]
-#
-#    ED_matrix[ES_var == es & Soc_var == 'non-poor', c('ED', 'ED_p', 'sim_ci_upp','sim_mean', #'sim_ci_low'):=
-#                as.list(c(ineq_test_nonpoor$Summary$EDfunc, ineq_test_nonpoor$Summary$P.Value #,CI(ineq_test_nonpoor$IndexDist)))]
-#
-#    ED_matrix[ES_var == es & Soc_var == 'diff', c('ED', 'ED_p', 'sim_ci_upp','sim_mean', #'sim_ci_low'):=
-#                as.list(c(ineq_test_delta$Summary$Reel_Val, ineq_test_delta$Summary$P.Value #,CI(ineq_test_delta$IndexDist)))]
-#  }
-# fwrite(ED_matrix,"/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/ED_matrix_Npoor.csv")
  
   for (es in c('hmi', 'retention', 'rec_decay')){
     print('___')
@@ -809,27 +656,55 @@ if (rerun == TRUE){
 
     # Test Delta
     GINIa <- ResampleTest(cbind(all_data_spatpoly$men_non_poor, all_data_spatpoly$men_poor),
-                         dc=1-all_data_spatpoly$es, fun="RCE", sampleunit = "ind", nsim = 9999)
+                         dc=1-all_data_spatpoly$es, fun="RCE", sampleunit = "ind", nsim = 999)
 
     # Store results
     ED_matrix[ES_var == es , c('RCE', 'RCE_p'):=
                 as.list(c(GINIa$Summary$RCE[2], min(GINIa$Summary$P.Value)))]
   }
  
-fwrite(ED_matrix,"/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/GINI_matrix_Npoor.csv")
+fwrite(ED_matrix,"Results/GINI_matrix_Npoor.csv")
 
   # Segregation curves
 all_data$prop_men_poor <- all_data$prop_men_poor/sum(all_data$prop_men_poor)
 all_data$prop_men_non_poor <- all_data$prop_men_non_poor/sum(all_data$prop_men_non_poor)
 
+# Courbe de ségrégation
+n <- nrow(all_data)
+x <- all_data$men_poor
+y <- all_data$men_non_poor
+a <- all_data$retention
+
+xx <- cbind(x, y, 1-a)
+xy <- xx
+xx[,1] <- xy[,1]/sum(xy[,1])
+xx[,2] <- xy[,2]/sum(xy[,2])
+xx <- xx[order(xx[,3]),]
+xx[,1] <- cumsum(xx[,1])
+xx[,2] <- cumsum(xx[,2])
+plot(xx[,1], xx[,2], type = "l", col="red", main = "HMI", xlab = "men_poor", ylab =  "men_non_poor")
+lines(c(0,1), c(0,1))
+
+
 data_curve = data.table(ES = rep(c('hmi', 'retention', 'rec_decay'), each = nrow(all_data)))
 for (es in c('hmi', 'retention', 'rec_decay')){
-  data = data.frame(all_data[, c('prop_men_non_poor', 'prop_men_poor', es)])
-  data <- data[order(data[,es]),]
-  data$prop_men_non_poor <- cumsum(data$prop_men_non_poor)
-  data$prop_men_poor <- cumsum(data$prop_men_poor)
+  xx <- data.frame(all_data[, c('men_non_poor', 'men_poor', es)])
+  xx[, es] = 1-xx[, es]
+  xy <- xx
+  xx[,1] <- xy[,1]/sum(xy[,1])
+  xx[,2] <- xy[,2]/sum(xy[,2])
+  xx <- xx[order(xx[,3]),]
+  xx[,1] <- cumsum(xx[,1])
+  xx[,2] <- cumsum(xx[,2])
+
+  #data = data.frame(all_data[, c('men_non_poor', 'men_poor', es)])
+  #data$men_non_poor = data$men_non_poor/sum(data$men_non_poor)
+  #data$men_poor = data$men_poor/sum(data$men_poor)
+  #data <- data[order(data[,es]),]
+  #data$men_non_poor <- cumsum(data$men_non_poor)
+  #data$men_poor <- cumsum(data$men_poor)
   
-  data_curve[ES == es, c('prop_men_non_poor', 'prop_men_poor')] = data[,c('prop_men_non_poor', 'prop_men_poor')]
+  data_curve[ES == es, c('men_poor', 'men_non_poor')] = xx[,c('men_poor', 'men_non_poor')]
 }
 
 data_curve[, ES_var_pretty := recode_factor(ES, "hmi"       = 'd. Heat mitigation',
@@ -840,10 +715,11 @@ ED_matrix[, ES_var_pretty := recode_factor(ES_var, "hmi"       = 'd. Heat mitiga
                                                "retention"  = 'e. Flood mitigation',
                                                'rec_decay' = "f. Recreation")]
 ED_matrix[, p_mean := as.character(ifelse(RCE_p< 0.001, 'p < 0.001', paste0('p = ',round(RCE_p, 3))))]
-ED_matrix[, label := paste0('GINIa = ', round(RCE, 2), '\n',p_mean)]
+ED_matrix[, label := paste0('GINIes = ', round(RCE, 2), '\n',p_mean)]
 ED_matrix[, c('x', 'y') := list(rep('left',3), c(rep('top', 3)))]
 
-curves_plot = ggplot(data_curve, aes(prop_men_non_poor, prop_men_poor)) + geom_line(color = "#420A68FF") + geom_abline(color = 'darkorange3', linewidth = 0.2) +
+curves_plot =  ggplot(data_curve, aes(y = men_non_poor, men_poor)) + 
+  geom_line( aes(color = men_non_poor< men_poor)) + 
   facet_wrap(~ES_var_pretty) +
   theme_bw() + ylab('Proportion of secure households') + xlab('Proportion of poor households') +
    theme(
@@ -856,16 +732,22 @@ curves_plot = ggplot(data_curve, aes(prop_men_non_poor, prop_men_poor)) + geom_l
     ),
     legend.position = 'bottom'
   ) +
-   geom_text_npc(data = ED_matrix, aes(npcx = x, npcy = y, label = label), inherit.aes = F,size = 4)
+   geom_text_npc(data = ED_matrix, aes(npcx = x, npcy = y, label = label), inherit.aes = F,size = 4) +
+      geom_abline(color = 'grey', linewidth = 0.4)+
+geom_ribbon(aes(ymin = men_non_poor, ymax =men_poor, xmin = 0, xmax= 1, fill = men_non_poor< men_poor), alpha = 0.2) +
+  scale_fill_manual(values =  c('#420A68FF', 'darkorange3'), name = "", labels = c("Secure households value > Poor households value", "Secure households value < Poor households value")) +
+  scale_color_manual(values =  c('#420A68FF', 'darkorange3'), name = "", labels = c("Secure households value > Poor households value", "Secure households value < Poor households value"))
+
+  
 } 
   
-ggsave(plot = curves_plot, '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/curves_plot.jpg', width = 9, height = 4)
+ggsave(plot = curves_plot, 'Figures/curves_plot.jpg', width = 9, height = 4)
 
 library(cowplot)
-ggsave(plot = plot_grid(density_plot, curves_plot, align = "h", rel_widths = c(1, 1), nrow = 2, labels = c('a', 'b')), '/Users/neyretma/Documents/EquitES/UrbanES/Paper/Figures/Fig3.jpg', width = 8, height = 7)
+ggsave(plot = plot_grid(density_plot, curves_plot, align = "h", rel_widths = c(1, 1), nrow = 2, labels = c('a', 'b')), 'Figures/Fig3.jpg', width = 8, height = 7)
 
 
-# Check Gini coefficients for specific groups
+  # Check Gini coefficients for specific groups
 all_data_spatpoly$ind_non65 <- all_data_spatpoly$ind - all_data_spatpoly$ind_65
 all_data_spatpoly$ind_non14 <- all_data_spatpoly$ind - all_data_spatpoly$ind_14
 

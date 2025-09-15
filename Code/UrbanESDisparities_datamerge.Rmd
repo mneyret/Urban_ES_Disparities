@@ -44,14 +44,8 @@ library(MASS) #pour boxcox
 library(betareg) #self-explanatory
 library(performance) #pour check_normality(reg)
 
-# library(tmap)
-# library(spdep) #pour lm.morantest()
-# library(dplyr)
-# library(car)
-# library(mosaic)
 library(gstat) #pour variogram
 
-#source('SegEnvIneq.R')
 ```
 
 Maintenant, on va importer toutes les données qu'il nous faut :
@@ -71,39 +65,37 @@ Maintenant, on va importer toutes les données qu'il nous faut :
 -   Les valeurs d'eaux de pluies retenues par les sols
 
 ```{r "importations", echo = F, include = F}
-rm(list = ls())
-wd = "/Volumes/leca/LECA/EQUIPE-BIOM/SERVALP/EQUITES/STAGE_SAMUEL/2024_data_stage_m2_lormel"
-setwd(wd)
+setwd("/Users/neyretma/Documents/EquitES/Paper_UrbanES/Submitted/Data_analysis")
+data_dir = "/Users/neyretma/Documents/Data/"
 
-perimeter = vect("/Users/neyretma/Documents/Data/ESNET/ESNET_FRONTIERES/ESNET_FRONTIERS.shp")
 
-#geoportail = vect("Filosofi2019_carreaux_200m_shp/grp_gre.shp")
-geoportail = vect("/Volumes/leca/LECA/EQUIPE-BIOM/SERVALP/EQUITES/STAGE_SAMUEL/2024_data_stage_m2_lormel/Analysis/200m_selection_urb.shp")
+perimeter = vect(paste0(data_dir, "ESNET/ESNET_FRONTIERES/ESNET_FRONTIERS.shp"))
+geoportail = vect(paste0(data_dir, "INSEE/200m_selection_urb.shp"))
 geoportail$ID = c(1:length(geoportail))
 
-parkES = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/all_serv_parks.tif')
-park_buffer_500 = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/recre_buff_500.tif')
-park_buffer_300 = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/recre_buff_300.tif')
-park_quantity = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/parks_quantity.tif')
-park_distance = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/parks_distance.tif')
-green_quantity = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/green_quantity.tif')
-park_decay = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/recre_decay_300.tif')
+#parkES = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/all_serv_parks.tif')
+#park_buffer_500 = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/recre_buff_500.tif')
+#park_buffer_300 = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/recre_buff_300.tif')
+#park_quantity = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/parks_quantity.tif')
+#park_distance = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/parks_distance.tif')
+#green_quantity = rast( '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/green_quantity.tif')
+park_decay = rast( 'Data/Temp_data/recre_decay_300.tif')
 #hmi0 = rast("InVEST/outputs/heatwave/hm_final.tif")
-hmi = rast("/Users/neyretma/Documents/ES_models/ES_from_Alberto/hmi_27_05_2024_EUSALP_barerock_as_green.tif")
+hmi = rast("Data/hmi_27_05_2024_EUSALP_barerock_as_green.tif")
 hmi = project(hmi, park_decay)
-retention = rast("/Users/neyretma/Documents/ES_models/ES_from_Alberto/Runoff_retention_17_05_2024_EUSALP.tif")
+retention = rast("Data/Runoff_retention_17_05_2024_EUSALP.tif")
 retention = project(retention, park_decay)
 
-# Restrict to Grenoble Y
+# Restrict to Grenoble area
 Grenoble_Y = ext(890000, 940000, 6432000, 6482000)
 
 all_rasters = list(
                  # parkES,
                  # park_buffer_500,
                  # park_buffer_300,
-                 park_quantity,
+                 # park_quantity,
                  # park_distance,
-                 green_quantity,
+                 # green_quantity,
                  park_decay,
                  resample(hmi,    park_decay),
                  resample(retention,park_decay)
@@ -111,7 +103,8 @@ all_rasters = list(
 all_rasters = lapply(all_rasters, function(x){crop(x, Grenoble_Y)})
 
 all_rasters = rast(all_rasters)
-names(all_rasters) = c("attract",  "opport", "pollut"  , "tot_rec", "rec_buff5","rec_buff3",'rec_quanti','rec_dist', 'green_quanti', "rec_decay", "hmi"  , "retention")
+names(all_rasters) = c(#"attract",  "opport", "pollut"  , "tot_rec", "rec_buff5","rec_buff3",'rec_quanti','rec_dist', 'green_quanti', 
+  "rec_decay", "hmi"  , "retention")
 
 gc()
 ```
@@ -145,36 +138,37 @@ Maintenant, on construit un joli tableau tout propre avec :
     -   *p_80* : La proportion de personnes de plus de 80 ans
 
 ```{r "manipulation du jeu de données", echo = F, include = F}
-tissu_urb = rast("/Volumes/leca/LECA/EQUIPE-BIOM/SERVALP/EQUITES/STAGE_SAMUEL/2024_data_stage_m2_lormel/urban_recreation_model/delimitations/GHS_2154.tif")
+tissu_urb = rast(paste0(data_dir, "GlobalHumanSettlement/GHS_2154.tif"))
 tissu_urb[tissu_urb<20] = NA #just a quick way to select the catergories we want, here
 tissu_urb[!is.na(tissu_urb)] = 1 # Put all the values to 1
 tissu_urb = as.polygons(tissu_urb, aggregate = T)
 
 # Need to also keep the INSEE squares that are on the border
-geoportail = vect("/Volumes/leca/LECA/EQUIPE-BIOM/SERVALP/EQUITES/STAGE_SAMUEL/2024_data_stage_m2_lormel/Analysis/200m_selection_urb.shp")
+#geoportail = vect("/Volumes/leca/LECA/EQUIPE-BIOM/SERVALP/EQUITES/STAGE_SAMUEL/2024_data_stage_m2_lormel/Analysis/200m_selection_urb.shp")
 tissu_urb = geoportail[is.related(geoportail, tissu_urb, "intersects")]
 
 geoportail = crop(geoportail, tissu_urb)
 
 # Select relevant social data
 geoportail$n_log = geoportail$log_av45 + geoportail$log_45_70 +
-    geoportail$log_70_90 + geoportail$log_ap90 + geoportail$log_inc
-geoportail$ind_65 = (geoportail$ind_80p + geoportail$ind_65_79) 
-geoportail$p_65 = geoportail$ind_65/ geoportail$ind
-geoportail$ind_80 = geoportail$ind_80p
-geoportail$p_80 = geoportail$ind_80/ geoportail$ind
-geoportail$ind_14 = geoportail$ind_0_3 +geoportail$ind_4_5 +geoportail$ind_6_10
-geoportail$p_14 = geoportail$ind_14/ geoportail$ind
-geoportail$p_pauv = geoportail$men_pauv/geoportail$men
-geoportail$men_non_pauv = geoportail$men-geoportail$men_pauv
-geoportail$nv_per_ind = geoportail$ind_snv/geoportail$ind
+    geoportail$log_70_90 + geoportail$log_ap90 + geoportail$log_inc # Number of housing units
+geoportail$ind_65 = (geoportail$ind_80p + geoportail$ind_65_79)  # Number of individuals > 65
+geoportail$p_65 = geoportail$ind_65/ geoportail$ind  # % of individuals > 65
+#geoportail$ind_80 = geoportail$ind_80p
+#geoportail$p_80 = geoportail$ind_80/ geoportail$ind
+geoportail$ind_14 = geoportail$ind_0_3 +geoportail$ind_4_5 +geoportail$ind_6_10 # Number of individuals < 14
+geoportail$p_14 = geoportail$ind_14/ geoportail$ind # % of individuals < 14
+geoportail$p_pauv = geoportail$men_pauv/geoportail$men # % poor households
+geoportail$men_non_pauv = geoportail$men-geoportail$men_pauv  # number of non poor households
+geoportail$nv_per_ind = geoportail$ind_snv/geoportail$ind # average income per individual
 
 socio = geoportail[c("men","men_pauv","men_non_pauv", "p_pauv",
                      "ind","ind_65", "p_65",
-                     "ind_80", "p_80", 
+                    # "ind_80", "p_80", 
                      'ind_14', 'p_14','ind_snv', 'nv_per_ind' )]
 
-tic() ; all_data = terra::extract(all_rasters, socio, fun = median,  na.rm = T, bind = T) ; toc()
+tic() ; 
+all_data = terra::extract(all_rasters, socio, fun = median,  na.rm = T, bind = T) ; toc()
 
 # Crop to final extent (only cities, no buffer)
 all_rasters = terra::mask(all_rasters, tissu_urb) 
@@ -182,8 +176,8 @@ all_data = terra::crop(all_data, tissu_urb)
 
 
 # Save both spatial datasets
-writeVector(all_data, '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/all_data_squares.shp', overwrite=TRUE)
-writeRaster(all_rasters, '/Users/neyretma/Documents/EquitES/UrbanES/Results_ES/all_ES_urban.tif', overwrite=TRUE)
+writeVector(all_data, 'Results/all_data_squares.shp', overwrite=TRUE)
+writeRaster(all_rasters, 'Results/all_ES_urban.tif', overwrite=TRUE)
 
 ```
 

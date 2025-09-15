@@ -124,7 +124,7 @@ visual_quality_distance = function(slu, parks, bfp, luH, luT, luW, ftn, grid, bu
 
   DecayWater = decay(DistWater, half = 300)
   plot(DecayWater)
-  score_waters = mask(DecayWater, parks)
+  score_waters = terra::mask(DecayWater, parks)
   print("d")
   # Total attractiveness score
   score_att = (score_vege + score_waters) /2 # Global attractiveness score
@@ -157,14 +157,14 @@ recre_opp_distance = function(parks, npatches, am_int, grid) {
     rastam = rasterizeGeom(am_int[[i]], grid, fun = "count") # The points of each amenity are rasterized
     rastam[rastam == 0] = NA
     rastam[!is.na(rastam)] = 1 # The pixel values will be either 1 or 0, depending on the presence of the amenity in them
-    mg = mask(rastam, parks) # The parks' limits and the amenity's presence are put on a single map
+    mg = terra::mask(rastam, parks) # The parks' limits and the amenity's presence are put on a single map
     mg = distance(mg) # Distance to the amenity is calculated in each park
     Decay = decay(mg, 300)
     add(resl) = Decay # Storage of the decay map
   }
   
   am = sum(resl)/3 # Each pixel will show the number of amenities contained within 500m
-  am = mask(am, parks)
+  am = terra::mask(am, parks)
   am[am == 0] = NA
   
   tot_recre = (park_size + am)/2 # Recreation opportunities score is the mean of the size and the amenities
@@ -193,7 +193,7 @@ pollut = function(parks, slu, luna, luB, lvls, matw, lvl_road) {
   # iota = zonal(buildis, parks, fun = "min") # uncomment for whole-park values, comment for for per-pixel values
   # buildis = classify(parks, iota) # uncomment for whole-park values, comment for for per-pixel values
   
-  buildis = mask(DecayBuild, parks) # uncomment for per-pixel values, comment for whole-park values
+  buildis = terra::mask(DecayBuild, parks) # uncomment for per-pixel values, comment for whole-park values
   
   #Noise Pollution
   wght = c() # empty vector that will store the land use that will impact sound propagation
@@ -230,7 +230,7 @@ pollut = function(parks, slu, luna, luB, lvls, matw, lvl_road) {
   # lambda = zonal(park_noise, parks, fun = "min") # uncomment for whole-park values, comment for per-pixel values
   # park_noise = classify(parks, lambda) # uncomment for whole-park values, comment for per-pixel values
   
-  park_noise = mask(park_noise, parks) # uncomment for per-pixel values, comment for whole-park values
+  park_noise = terra::mask(park_noise, parks) # uncomment for per-pixel values, comment for whole-park values
   
   # The final score
   score_pol = (park_noise + buildis)/2 # Mean of the two pollution scores. High score = high pollution
