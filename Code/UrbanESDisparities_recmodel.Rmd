@@ -1,0 +1,132 @@
+---
+title: "Merge_socio_ES_data"
+author: "Samuel Lormel - Margot Neyret"
+date: "2026-06-23"
+output: html_document
+editor_options: 
+  chunk_output_type: consoleU
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      eval = TRUE, 
+                      fig.align = "center", 
+                      fig.width = 8,
+                      fig.height = 6, 
+                      message = FALSE, 
+                      warning = FALSE) 
+```
+
+
+```{r Initialisation, echo = T, include = T}
+library(ggplot2)
+library(terra)
+library(here)
+#library(tidyterra)
+#library(tictoc)
+#library(reticulate)
+#library(leaflet)
+
+source("Code/config.R")
+source("Code/UrbanES_Recreationfunctions.R")
+
+
+setwd(here::here())
+
+
+
+####### LOAD DATA #######
+# Study area
+communes_perimeter = vect(file.path(path_data_raw, "Communes/communes_perimeter.shp"))
+communes_perimeter_buff = buffer(communes_perimeter, 500)
+
+#CoSIA Land Use, 10m resolution
+colu = rast(file.path(path_data_raw, "Land_use/Cosia/cosia_10m.tif"))
+names(colu) = c("lu_num")
+colu = terra::mask(colu, communes_perimeter_buff)
+seg_colu = segregate(colu, classes = NULL, keep = T, other = NA) # A raster for which each layer is a land use
+
+# The urban areas, defined from the Global Human Settlement database
+rast_grid = rasterize(communes_perimeter_buff, seg_colu)
+
+urban_fabric = rast(file.path(path_data_raw, "GlobalHumanSettlement/GHS_2154.tif"))
+urban_fabric[urban_fabric<20] = NA # select the categories we want
+urban_fabric[!is.na(urban_fabric)] = 1 # Put all the values to 1
+urban_fabric = as.polygons(urban_fabric, aggregate = T)
+
+# Need to also keep the INSEE squares that are on the border
+geoportail = vect(file.path(path_data_raw, "INSEE/200m_selection_urb.shp"))
+urban_fabric = geoportail[is.related(geoportail, urban_fabric, "intersects")]
+urban_fabric_buff = buffer(urban_fabric, 1000)
+city_buff = rasterize(urban_fabric_buff, rast_grid, field = "i_est_200", background = NA) # Polygonized and rasterized for a proper resolution
+city_buff[!is.na(city_buff)] = 1
+
+# Parks and green spaces, built on QGIS from OpenStreetMap
+green_spaces = vect(file.path(path_data_raw, "Amenities/osm_parks.shp"))
+
+rast_parks = rasterize(green_spaces, rast_grid, field = "use_type", background = NA, fun = max)
+
+# Selection of the parks and green areas in a buffer around urban areas. 
+rast_parks = terra::mask(rast_parks, urban_fabric_buff)
+
+# Patching to measure park size (if there is only a short distance between two parks, count as 1 park)
+buffed_parks = buffer(rast_parks, 10, background = NA) # Buffer around rast_parks
+buffed_patches = patches(buffed_parks, 8, allowGaps = F) # Identify patches 
+park_patch = terra::mask(buffed_patches, rast_parks) # Removing buffers
+
+npatches = max(values(park_patch), na.rm = TRUE) # number of parks
+
+# Amenities
+fountains =   vect(file.path(path_data_raw, "Amenities/osm_fountains.shp")) # point layers for the fountains
+playgrounds = vect(file.path(path_data_raw, "Amenities/osm_playgrounds.shp")) # Playgrounds
+fitness =    vect(file.path(path_data_raw, "Amenities/osm_fitness.shp")) # Open air fitness areas
+drink_wat =   vect(file.path(path_data_raw, "Amenities/osm_drinking_water.shp")) # Drinking water points
+
+am_int = list(fitness,playgrounds,drink_wat) # List of point layers or the interesting amenities
+
+# Roads
+all_roads = rast(file.path(path_data_raw, "Amenities/road_noise.tif")) # Raster layer of 3 "road levels", built from OpenStreetMap on QGIS
+
+
+#Removing the temporary elements
+rm(urban_fabric, drink_wat, fitness, playgrounds)
+
+####### RUN MODELS #######
+
+### Overall park quality assessment
+## Visual quality
+visu = visual_quality_distance(slu = seg_colu, parks = park_patch,
+               luH = c("13", "15"), luT = c("8", "10"), luW = c("4", "6"), ftn = fountains,
+               grid = rast_grid )
+
+terra::writeRaster(visu, file.path(path_intermdediate_results, "attractiveness.tif"), datatype = "FLT8S", overwrite = TRUE)
+
+## Recreation opportunities
+opp = recre_opp_distance(parks = park_patch, npatches = npatches, am_int = am_int, grid = rast_grid)
+terra::writeRaster(opp,  file.path(path_intermdediate_results, "opportunities.tif"), datatype = "FLT8S", overwrite = TRUE)
+
+gc() 
+
+## Pollution
+poll = pollut(parks = park_patch, slu = seg_colu, luna = c("1", "8", "10"), luB = "1",
+           lvls = c(60, 80, 90), matw = data.frame(lu = c(1, 8, 10), weight = c(50,10,10)),
+           lvl_road = all_roads)
+
+terra::writeRaster(poll,  file.path(path_intermdediate_results, "pollution.tif"), datatype = "FLT8S", overwrite = TRUE)
+
+all = serv_tot(attractiveness = visu, opportunities = opp, pollutions = poll)
+terra::writeRaster(all,  file.path(path_intermdediate_results, "all_serv_parks.tif"), datatype = "FLT8S", overwrite = TRUE)
+terra::writeRaster(all[[4]],  file.path(path_intermdediate_results, "parks_quality.tif"), datatype = "FLT8S", overwrite = TRUE)
+
+gc()
+
+### Select only target area
+e = ext(890000, 940000, 6432000, 6482000)
+parks_quality= all[[4]]
+parks_quality = crop(parks_quality, e)
+
+# Measure overall service based on decay distance
+recre_decay = qual_decay(parks_quality, radius_in_pixels = 100, decay_half_dist = 300)
+recre_decay[is.na(recre_decay)] = 0
+terra::writeRaster(recre_decay,  file.path(path_intermdediate_results, "recre_decay_300_whole_region.tif"), datatype = "FLT8S", overwrite = TRUE)
+```

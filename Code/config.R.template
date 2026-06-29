@@ -1,0 +1,10 @@
+# config.R.template
+path_data_raw   <- ""
+path_intermdediate_results    <- ""
+path_figures    <- ""
+
+stopifnot(
+  nchar(path_data_raw) > 0,
+  nchar(path_intermdediate_results)  > 0,
+  nchar(path_figures)  > 0
+)
