@@ -55,8 +55,6 @@ urban_areas[urban_areas<20] = NA #just a quick way to select the catergories we 
 urban_areas = as.polygons(urban_areas, aggregate = T)
 urban_areas = crop(urban_areas, Grenoble_Y)
 
-
-
 all_data$nv_per_ind_k = all_data$nv_per_ind/10000
 
 ```
@@ -80,7 +78,7 @@ for (v in 1:length(variables)){
 
 all_data$is.low_nv = ifelse(all_data$nv_per_ind<median(all_data$nv_per_ind), 'low_nv', 'high_nv')
 
-# Number of poorly provided ES
+# Number of ES provided at very low level
 all_data$n_q1 = as.numeric(all_data$q_retention == 1) + as.numeric(all_data$q_hmi == 1) + as.numeric(all_data$q_rec_decay == 1)
 
 data_socio = as.data.frame(all_data)

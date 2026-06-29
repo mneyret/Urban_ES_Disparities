@@ -36,14 +36,13 @@ decay = function(d, half){
 #' scaleraster
 #' @param x a raster
 #' @export 
-#' @return Returns a rescaled raster
+#' @return Returns a rescaled raster (0-1)
 #' @details Rescales a raster between 0 and 1
 scaleraster = function(x){
   # 
   nx <- minmax(x)    
   x <- (x - nx[1,]) / (nx[2,] - nx[1,])
 }
-
 
 #' draw_window_decay
 #' @param radius_in_pixels radius of the window to draw, in pixels
