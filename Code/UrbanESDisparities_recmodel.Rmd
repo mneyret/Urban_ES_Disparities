@@ -4,7 +4,7 @@ author: "Samuel Lormel - Margot Neyret"
 date: "2026-06-23"
 output: html_document
 editor_options: 
-  chunk_output_type: consoleU
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -22,17 +22,11 @@ knitr::opts_chunk$set(echo = FALSE,
 library(ggplot2)
 library(terra)
 library(here)
-#library(tidyterra)
-#library(tictoc)
-#library(reticulate)
-#library(leaflet)
-
-source("Code/config.R")
-source("Code/UrbanES_Recreationfunctions.R")
-
 
 setwd(here::here())
 
+source("Code/config.R")
+source("Code/UrbanES_Recreationfunctions.R")
 
 
 ####### LOAD DATA #######
