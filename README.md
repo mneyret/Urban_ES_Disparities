@@ -1,4 +1,4 @@
-# Urban_ES_Disparities
+# Disparities in climate risk-mitigation and recreation services
 These scripts allow to reproduce the results from the paper Neyret et al. 2026. Disparities in climate risk-mitigation and recreation services in Grenoble
 (France). Ecological Economics.
 
