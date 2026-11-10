@@ -12,7 +12,7 @@ These scripts allow to reproduce the results from the paper Neyret et al. 2026. 
 The raw data used to run UrbanESDisparities_recmodel.R are NOT provided here and should be gathered independently; sources are listed below. Instead, only the raster and vector data (needed to run the final script, UrbanESDisparities_datamerge.R) are provided.
 If you only wish to reproduce the final results (rather than applying the recreation model to another study site for instance), you should only run this last file.
 
-### Details ###
+## Details ##
 
 ### config.R.template
 Fill this with correct paths in your setup, then save as config.R
