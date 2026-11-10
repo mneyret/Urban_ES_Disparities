@@ -15,15 +15,9 @@ library(sf)
 library(spatialreg)
 library(terra)
 library(tidyterra)
-#library(Rmisc)
-#library(coin)
 library(Hmisc)
-#library(ggridges)
-#library(RColorBrewer)
 library(cowplot)
 library(ggnewscale)
-#library(car)
-#library(sjstats)
 library(spatstat)
 library(ggplot2)
 library(ggtext)
@@ -939,5 +933,4 @@ curves_plot = ggplot(data_curve_mismatch_melt, aes(x = prop_ind, y = value, colo
 GINI_young_rec <- ResampleTest(cbind(all_data_spatpoly$ind_14, all_data_spatpoly$ind_non14),
                          dc=1-all_data_spatpoly$rec_decay, fun="RCE", sampleunit = "ind", nsim = 999)
 GINI_young_rec$Summary
-  
 ```

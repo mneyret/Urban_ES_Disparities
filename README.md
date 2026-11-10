@@ -5,10 +5,10 @@ These scripts allow to reproduce the results from the paper Neyret et al. 2026. 
 - The file config.R lists the directories in which data, intermediate results, or figures should be read or saved.
 - The file UrbanES_Recreationfunctions.R contains all the functions necessary in UrbanESDisparities_recmodel.R
 - UrbanESDisparities_recmodel.R gathers all raw spatial data to generate rasters of park quality, and distance-weighted park quality
-- The file UrbanESDisparities_datamerge.R combine these rasters (as well as a raster for heat mitigation) with INSEE socio-demographic data and outputs cleaned up rasters and vector files summarising data at the square (200mx200m) level.
+- The file UrbanESDisparities_datamerge.R combines these rasters (as well as a raster for heat mitigation) with INSEE socio-demographic data and outputs cleaned up rasters and vector files summarising data at the square (200mx200m) level.
 - The file UrbanESDisparities_datamerge.R runs the actual analysis and outputs figures.
 
-!!! Important.
+**Important.**
 The raw data used to run UrbanESDisparities_recmodel.R are NOT provided here and should be gathered independently; sources are listed below. Instead, only the raster and vector data (needed to run the final script, UrbanESDisparities_datamerge.R) are provided.
 If you only wish to reproduce the final results (rather than applying the recreation model to another study site for instance), you should only run this last file.
 
@@ -23,10 +23,13 @@ Contains all functions to generate the recreation layers.
 ## UrbanESDisparities_recmodel.R
 Relies on UrbanES_Recreationfunctions.R to compute the recreation layers.
 
+## UrbanESDisparities_recmodel.R
+
 Input: 
 These should be acquired for the study area (you may extract the extent of the study area from the final recreation maps)
 
 - communes_perimeter.shp
+Extent of the study area - this can be extracted from the final recreation maps
 
 - Cosia/cosia_10m.tif
 https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_COSIA. IGN, 2023. CoSIA [WWW Document]. (accessed 12.3.24).
@@ -38,19 +41,18 @@ Urbanisation Classification, application of the Degree of Urbanisation methodolo
 Joint Research Centre (JRC).
 https://10.2905/DC0EB21D-472C-4F5A-8846-823C50836305
 
-INSEE/200m_selection_urb.shp. 
+- INSEE/200m_selection_urb.shp. 
 https://www.insee.fr/fr/statistiques/7655515.
 Insee, 2019. Revenus, pauvreté et niveau de vie - Données carroyées. Dispositif Fichier
 localisé social et fiscal (FiLoSoFi).
 
+All acquired from Open Street Map data :
 - Amenities/osm_parks.shp
 - Amenities/osm_fountains.shp
 - Amenities/osm_playgrounds.shp
 - Amenities/osm_fitness.shp
 - Amenities/osm_drinking_water.shp
--All acquired from Open Street Map data.
-
-Amenities/road_noise.tif
+- Amenities/road_noise.tif
 
 Output:
 Data/Temp_data/attractiveness.tif
