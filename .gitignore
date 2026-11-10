@@ -1,0 +1,20 @@
+Data/*
+Figures/*
+Results/*
+Code/config.R
+.Rhistory
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+Icon
+
+# Thumbnails
+._*

@@ -1,0 +1,144 @@
+---
+title: "Merge_socio_ES_data"
+author: "Samuel Lormel - Margot Neyret"
+date: "2026-06-23"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      eval = TRUE, 
+                      fig.align = "center", 
+                      fig.width = 8,
+                      fig.height = 6, 
+                      message = FALSE, 
+                      warning = FALSE)
+```
+
+# Initialisation
+
+```{r Initialisation, echo = F, include = F}
+library(terra)
+library(tidyterra)
+library(here)
+
+setwd(here::here())
+
+source("Code/config.R")
+```
+
+Maintenant, on va importer toutes les données qu'il nous faut :
+
+-   Géoportail, avec toutes les données socio
+
+-   Les services de récréation
+
+-   Le meilleur ratio qualité/distance
+
+-   La valeur du meilleur parc dans un rayon de 500m
+
+-   Les Heat Mitigation index
+
+-   Les valeurs d'eaux de crues retenues par les sols
+
+-   Les valeurs d'eaux de pluies retenues par les sols
+
+```{r "importations", echo = F, include = F}
+perimeter = vect(file.path(path_data_raw, "ESNET/ESNET_FRONTIERES/ESNET_FRONTIERS.shp"))
+geoportail = vect(file.path(path_data_raw, "INSEE/200m_selection_urb.shp"))
+geoportail$ID = c(1:length(geoportail))
+
+park_decay = rast( file.path(path_intermdediate_results,'recre_decay_300_whole_region.tif'))
+
+hmi = rast(file.path(path_data_raw, "ES_MAPS/Final_ES/Heat_mitigation_index_all_scenarios_20_01_2026/Hm_heatwave_present_20_01_2026.tif"))
+hmi = project(hmi, park_decay)
+
+retention = rast(file.path(path_data_raw, "ES_MAPS/Final_ES/ES_models_all_19_01_2026_present/Floods_Runoff_ret_index_present_08_10_2025.tif"))
+retention = project(retention, park_decay)
+
+# Restrict to Grenoble area
+Grenoble_Y = ext(890000, 940000, 6432000, 6482000)
+
+all_rasters = list(
+                 park_decay,
+                 resample(hmi,    park_decay),
+                 resample(retention,park_decay)
+                )
+all_rasters = lapply(all_rasters, function(x){crop(x, Grenoble_Y)})
+
+all_rasters = rast(all_rasters)
+names(all_rasters) = c(  "rec_decay", "hmi"  , "retention")
+
+gc()
+```
+
+Maintenant, on construit un joli tableau tout propre avec :
+
+-   *ID* : Les ID de polygones
+
+-   *x*, *y* : Les coordonnées des centroïdes
+
+-   *access* : Les valeurs d'accessibilité
+
+-   *best_near* : Le meilleur service dans un rayon de 500m
+
+-   *hmi* : Les index de mitigation de la température
+
+-   *runoff*, *storm* : Les valeurs de rétention d'eau de crues et de tempêtes
+
+-   *prop_build* : La proportion de bâti
+
+-   Les paramètres sociaux :
+
+    -   *men* : Le nombre de ménages
+
+    -   *ind* : Le nombre d'individus
+
+    -   *p_pauv* : La proportion de ménages pauvres
+
+    -   *p_log_soc* : La proportion de logements sociaux
+
+    -   *p_80* : La proportion de personnes de plus de 80 ans
+
+```{r "manipulation du jeu de données", echo = F, include = F}
+tissu_urb = rast(paste0(path_data_raw, "GlobalHumanSettlement/GHS_2154.tif"))
+tissu_urb[tissu_urb<20] = NA #just a quick way to select the catergories we want, here
+tissu_urb[!is.na(tissu_urb)] = 1 # Put all the values to 1
+tissu_urb = as.polygons(tissu_urb, aggregate = T)
+
+# Need to also keep the INSEE squares that are on the border
+tissu_urb = geoportail[is.related(geoportail, tissu_urb, "intersects")]
+
+geoportail = crop(geoportail, tissu_urb)
+
+# Select relevant social data
+geoportail$n_log = geoportail$log_av45 + geoportail$log_45_70 +
+    geoportail$log_70_90 + geoportail$log_ap90 + geoportail$log_inc # Number of housing units
+geoportail$ind_65 = (geoportail$ind_80p + geoportail$ind_65_79)  # Number of individuals > 65
+geoportail$p_65 = geoportail$ind_65/ geoportail$ind  # % of individuals > 65
+geoportail$ind_14 = geoportail$ind_0_3 +geoportail$ind_4_5 +geoportail$ind_6_10 # Number of individuals < 14
+geoportail$p_14 = geoportail$ind_14/ geoportail$ind # % of individuals < 14
+geoportail$p_pauv = geoportail$men_pauv/geoportail$men # % poor households
+geoportail$p_non_pauv = 1- geoportail$p_pauv # % poor non- households
+geoportail$men_non_pauv = geoportail$men-geoportail$men_pauv  # number of non poor households
+geoportail$nv_per_ind = geoportail$ind_snv/geoportail$ind # average income per individual
+
+socio = geoportail[c("men","men_pauv","men_non_pauv", "p_pauv","p_non_pauv",
+                     "ind","ind_65", "p_65",
+                     'ind_14', 'p_14','ind_snv', 'nv_per_ind')]
+
+all_data = terra::extract(all_rasters, socio, fun = median,  na.rm = T, bind = T)
+
+# Crop to final extent (only cities, no buffer)
+all_rasters = terra::mask(all_rasters, tissu_urb) 
+all_data = terra::crop(all_data, tissu_urb) 
+
+
+# Save both spatial datasets
+writeVector(all_data, file.path(path_intermdediate_results, 'all_data_squares.shp'), overwrite=TRUE)
+writeRaster(all_rasters, file.path(path_intermdediate_results, 'all_ES_urban.tif'), overwrite=TRUE)
+```
+
+

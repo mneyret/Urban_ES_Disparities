@@ -1,0 +1,9 @@
+# config.R.template
+path_data_raw   <- ""
+path_intermdediate_results    <- ""
+
+if (nchar(path_data_raw) == 0)
+  stop("path_data_raw is not set or does not exist — copy config.R.template to config.R and fill in your local paths")
+
+if (nchar(path_intermdediate_results) == 0)
+  stop("path_intermdediate_results is not set or does not exist — copy config.R.template to config.R and fill in your local paths")
