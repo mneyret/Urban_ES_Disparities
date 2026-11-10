@@ -14,16 +14,16 @@ If you only wish to reproduce the final results (rather than applying the recrea
 
 ### Details ###
 
-## config.R.template
+### config.R.template
 Fill this with correct paths in your setup, then save as config.R
 
-## UrbanES_Recreationfunctions.R
+### UrbanES_Recreationfunctions.R
 Contains all functions to generate the recreation layers.
 
-## UrbanESDisparities_recmodel.R
+### UrbanESDisparities_recmodel.R
 Relies on UrbanES_Recreationfunctions.R to compute the recreation layers.
 
-## UrbanESDisparities_recmodel.R
+### UrbanESDisparities_recmodel.R
 
 Input: 
 These should be acquired for the study area (you may extract the extent of the study area from the final recreation maps)
