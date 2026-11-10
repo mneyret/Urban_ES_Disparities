@@ -1,5 +1,6 @@
-# Urban_ES_Disparities
-These scripts allow to reproduce the results from the paper Neyret et al. 2026. 
+# Disparities in climate risk-mitigation and recreation services
+These scripts allow to reproduce the results from the paper Neyret et al. 2026. Disparities in climate risk-mitigation and recreation services in Grenoble
+(France). Ecological Economics.
 
 - The file config.R lists the directories in which data, intermediate results, or figures should be read or saved.
 - The file UrbanES_Recreationfunctions.R contains all the functions necessary in UrbanESDisparities_recmodel.R
